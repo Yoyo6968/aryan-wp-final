@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Save, Share2 } from "lucide-react";
 import { createStory } from "@/api/storyApi";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const Generator = () => {
   const [user, setUser] = useState<any>(null);
@@ -36,20 +37,56 @@ const Generator = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleGenerate = async () => {
-    setLoading(true);
-    // Placeholder AI integration — replace with real LLM call as required
-    setTimeout(() => {
-      setGeneratedStory(
-        `${starterText}\n\nThe story continues with unexpected twists and turns. As the protagonist ventures deeper into the unknown, they discover secrets that change everything they thought they knew. The ${genre} atmosphere intensifies with a ${tone} tone, while the ${style} narrative style brings the tale to life.\n\n(This is a placeholder for AI-generated content.)`
-      );
-      setLoading(false);
-      toast({
-        title: "Story Generated!",
-        description: "Your story has been created successfully",
-      });
-    }, 1200);
-  };
+  // ✅ Gemini AI Integration
+const handleGenerate = async () => {
+  if (!starterText) {
+    toast({
+      title: "Missing Input",
+      description: "Please enter some starter text first!",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLoading(true);
+  setGeneratedStory("");
+
+  try {
+    const prompt = `
+You are an imaginative writer. Continue this story below with emotion, depth, and creativity.
+
+Title: ${title || "Untitled Story"}
+Genre: ${genre || "General Fiction"}
+Tone: ${tone || "Neutral"}
+Style: ${style || "Descriptive"}
+
+Story so far:
+"${starterText}"
+
+Continue naturally in the same tone and style.
+`;
+
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || "Gemini API error");
+
+    setGeneratedStory(data.text);
+    toast({ title: "Story Generated!", description: "AI has written your story!" });
+  } catch (err: any) {
+    toast({
+      title: "Error generating story",
+      description: err.message,
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSave = async () => {
     if (!user || !generatedStory) {
@@ -58,7 +95,6 @@ const Generator = () => {
     }
 
     try {
-      // get supabase access token
       const { data } = await supabase.auth.getSession();
       const token = (data as any)?.session?.access_token;
 
@@ -77,13 +113,13 @@ const Generator = () => {
 
       toast({
         title: "Saved!",
-        description: "Story saved to your profile",
+        description: "Story saved to your profile.",
       });
     } catch (error: any) {
       console.error(error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save story",
+        description: error.message || "Failed to save story.",
         variant: "destructive",
       });
     }
@@ -114,13 +150,13 @@ const Generator = () => {
 
       toast({
         title: "Published!",
-        description: "Your story is now live in the community feed",
+        description: "Your story is now live in the community feed.",
       });
     } catch (error: any) {
       console.error(error);
       toast({
         title: "Error",
-        description: error.message || "Failed to publish story",
+        description: error.message || "Failed to publish story.",
         variant: "destructive",
       });
     }
@@ -141,12 +177,24 @@ const Generator = () => {
             <div className="space-y-6">
               <div>
                 <Label htmlFor="title">Story Title</Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter a title for your story" className="bg-background/50 border-neon" />
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter a title for your story"
+                  className="bg-background/50 border-neon"
+                />
               </div>
 
               <div>
                 <Label htmlFor="starter">Starter Text</Label>
-                <Textarea id="starter" value={starterText} onChange={(e) => setStarterText(e.target.value)} placeholder="Begin your story here... The AI will continue from where you leave off." className="min-h-[150px] bg-background/50 border-neon" />
+                <Textarea
+                  id="starter"
+                  value={starterText}
+                  onChange={(e) => setStarterText(e.target.value)}
+                  placeholder="Begin your story here... The AI will continue from where you leave off."
+                  className="min-h-[150px] bg-background/50 border-neon"
+                />
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
