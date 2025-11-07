@@ -23,9 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- THIS IS THE CORRECTED LINE ---
-    // Added "-latest" to the model name
+    // Switched to the stable 'gemini-1.0-pro' model
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
