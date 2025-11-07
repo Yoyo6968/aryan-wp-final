@@ -3,14 +3,19 @@ import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Save, Share2 } from "lucide-react";
 import { createStory } from "@/api/storyApi";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const Generator = () => {
   const [user, setUser] = useState<any>(null);
@@ -37,23 +42,24 @@ const Generator = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ✅ Gemini AI Integration
-const handleGenerate = async () => {
-  if (!starterText) {
-    toast({
-      title: "Missing Input",
-      description: "Please enter some starter text first!",
-      variant: "destructive",
-    });
-    return;
-  }
+  // ✅ GEMINI AI INTEGRATION
+  const handleGenerate = async () => {
+    if (!starterText) {
+      toast({
+        title: "Missing Input",
+        description: "Please enter some starter text first!",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  setLoading(true);
-  setGeneratedStory("");
+    setLoading(true);
+    setGeneratedStory("");
 
-  try {
-    const prompt = `
-You are an imaginative writer. Continue this story below with emotion, depth, and creativity.
+    try {
+      const prompt = `
+You are a creative and imaginative storyteller.
+Continue this story with emotional depth, vivid imagery, and engaging dialogue.
 
 Title: ${title || "Untitled Story"}
 Genre: ${genre || "General Fiction"}
@@ -63,34 +69,42 @@ Style: ${style || "Descriptive"}
 Story so far:
 "${starterText}"
 
-Continue naturally in the same tone and style.
+Continue this story naturally with consistent tone and pacing.
 `;
 
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-    });
+      // Call your deployed Vercel API route
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
 
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || "Gemini API error");
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || "Gemini API error");
 
-    setGeneratedStory(data.text);
-    toast({ title: "Story Generated!", description: "AI has written your story!" });
-  } catch (err: any) {
-    toast({
-      title: "Error generating story",
-      description: err.message,
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      setGeneratedStory(data.text);
+      toast({
+        title: "Story Generated!",
+        description: "AI successfully wrote your story.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error generating story",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // ✅ SAVE STORY TO SUPABASE
   const handleSave = async () => {
     if (!user || !generatedStory) {
-      toast({ title: "Missing", description: "Please sign in and generate a story first." });
+      toast({
+        title: "Missing",
+        description: "Please sign in and generate a story first.",
+      });
       return;
     }
 
@@ -125,9 +139,13 @@ Continue naturally in the same tone and style.
     }
   };
 
+  // ✅ PUBLISH STORY TO COMMUNITY
   const handlePublish = async () => {
     if (!user || !generatedStory) {
-      toast({ title: "Missing", description: "Please sign in and generate a story first." });
+      toast({
+        title: "Missing",
+        description: "Please sign in and generate a story first.",
+      });
       return;
     }
 
@@ -162,6 +180,7 @@ Continue naturally in the same tone and style.
     }
   };
 
+  // ✅ FRONTEND RENDER
   return (
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
@@ -169,10 +188,15 @@ Continue naturally in the same tone and style.
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gradient mb-2">Story Generator</h1>
-            <p className="text-muted-foreground">Let AI help you craft your next masterpiece</p>
+            <h1 className="text-4xl font-bold text-gradient mb-2">
+              Story Generator
+            </h1>
+            <p className="text-muted-foreground">
+              Let AI help you craft your next masterpiece
+            </p>
           </div>
 
+          {/* INPUT CARD */}
           <Card className="p-8 bg-glass border-neon">
             <div className="space-y-6">
               <div>
@@ -247,22 +271,36 @@ Continue naturally in the same tone and style.
                 </div>
               </div>
 
-              <Button onClick={handleGenerate} disabled={loading || !starterText} className="w-full hover-glow" size="lg">
+              <Button
+                onClick={handleGenerate}
+                disabled={loading || !starterText}
+                className="w-full hover-glow"
+                size="lg"
+              >
                 <Sparkles className="w-5 h-5 mr-2" />
                 {loading ? "Generating..." : "Generate Story"}
               </Button>
             </div>
           </Card>
 
+          {/* OUTPUT CARD */}
           {generatedStory && (
             <Card className="p-8 bg-glass border-neon">
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-gradient">Generated Story</h2>
+                <h2 className="text-2xl font-bold text-gradient">
+                  Generated Story
+                </h2>
                 <div className="prose prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap text-foreground">{generatedStory}</p>
+                  <p className="whitespace-pre-wrap text-foreground">
+                    {generatedStory}
+                  </p>
                 </div>
                 <div className="flex gap-4">
-                  <Button onClick={handleSave} variant="outline" className="border-neon">
+                  <Button
+                    onClick={handleSave}
+                    variant="outline"
+                    className="border-neon"
+                  >
                     <Save className="w-4 h-4 mr-2" />
                     Save Draft
                   </Button>
