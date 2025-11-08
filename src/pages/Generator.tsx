@@ -58,8 +58,7 @@ const Generator = () => {
 
     try {
       const prompt = `
-You are a creative and imaginative storyteller.
-Continue this story with emotional depth, vivid imagery, and engaging dialogue.
+You are a creative storyteller. Continue this story naturally.
 
 Title: ${title || "Untitled Story"}
 Genre: ${genre || "General Fiction"}
@@ -69,10 +68,9 @@ Style: ${style || "Descriptive"}
 Story so far:
 "${starterText}"
 
-Continue this story naturally with consistent tone and pacing.
+Continue this story with emotion, imagination, and strong pacing.
 `;
 
-      // Call your deployed Vercel API route
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,6 +102,7 @@ Continue this story naturally with consistent tone and pacing.
       toast({
         title: "Missing",
         description: "Please sign in and generate a story first.",
+        variant: "destructive",
       });
       return;
     }
@@ -126,13 +125,13 @@ Continue this story naturally with consistent tone and pacing.
       );
 
       toast({
-        title: "Saved!",
-        description: "Story saved to your profile.",
+        title: "Draft Saved!",
+        description: "Your story has been saved privately.",
       });
     } catch (error: any) {
       console.error(error);
       toast({
-        title: "Error",
+        title: "Save Error",
         description: error.message || "Failed to save story.",
         variant: "destructive",
       });
@@ -145,6 +144,7 @@ Continue this story naturally with consistent tone and pacing.
       toast({
         title: "Missing",
         description: "Please sign in and generate a story first.",
+        variant: "destructive",
       });
       return;
     }
@@ -167,20 +167,19 @@ Continue this story naturally with consistent tone and pacing.
       );
 
       toast({
-        title: "Published!",
-        description: "Your story is now live in the community feed.",
+        title: "Story Published!",
+        description: "Your story is now visible in the community feed.",
       });
     } catch (error: any) {
       console.error(error);
       toast({
-        title: "Error",
+        title: "Publish Error",
         description: error.message || "Failed to publish story.",
         variant: "destructive",
       });
     }
   };
 
-  // ✅ FRONTEND RENDER
   return (
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
@@ -199,31 +198,27 @@ Continue this story naturally with consistent tone and pacing.
           {/* INPUT CARD */}
           <Card className="p-8 bg-glass border-neon">
             <div className="space-y-6">
-              <div>
-                <Label htmlFor="title">Story Title</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter a title for your story"
-                  className="bg-background/50 border-neon"
-                />
-              </div>
+              <Label htmlFor="title">Story Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter a title for your story"
+                className="bg-background/50 border-neon"
+              />
 
-              <div>
-                <Label htmlFor="starter">Starter Text</Label>
-                <Textarea
-                  id="starter"
-                  value={starterText}
-                  onChange={(e) => setStarterText(e.target.value)}
-                  placeholder="Begin your story here... The AI will continue from where you leave off."
-                  className="min-h-[150px] bg-background/50 border-neon"
-                />
-              </div>
+              <Label htmlFor="starter">Starter Text</Label>
+              <Textarea
+                id="starter"
+                value={starterText}
+                onChange={(e) => setStarterText(e.target.value)}
+                placeholder="Begin your story here..."
+                className="min-h-[150px] bg-background/50 border-neon"
+              />
 
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="genre">Genre</Label>
+                  <Label>Genre</Label>
                   <Select value={genre} onValueChange={setGenre}>
                     <SelectTrigger className="bg-background/50 border-neon">
                       <SelectValue placeholder="Select genre" />
@@ -240,7 +235,7 @@ Continue this story naturally with consistent tone and pacing.
                 </div>
 
                 <div>
-                  <Label htmlFor="tone">Tone</Label>
+                  <Label>Tone</Label>
                   <Select value={tone} onValueChange={setTone}>
                     <SelectTrigger className="bg-background/50 border-neon">
                       <SelectValue placeholder="Select tone" />
@@ -256,7 +251,7 @@ Continue this story naturally with consistent tone and pacing.
                 </div>
 
                 <div>
-                  <Label htmlFor="style">Style</Label>
+                  <Label>Style</Label>
                   <Select value={style} onValueChange={setStyle}>
                     <SelectTrigger className="bg-background/50 border-neon">
                       <SelectValue placeholder="Select style" />
@@ -290,11 +285,9 @@ Continue this story naturally with consistent tone and pacing.
                 <h2 className="text-2xl font-bold text-gradient">
                   Generated Story
                 </h2>
-                <div className="prose prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap text-foreground">
-                    {generatedStory}
-                  </p>
-                </div>
+                <p className="whitespace-pre-wrap text-foreground">
+                  {generatedStory}
+                </p>
                 <div className="flex gap-4">
                   <Button
                     onClick={handleSave}

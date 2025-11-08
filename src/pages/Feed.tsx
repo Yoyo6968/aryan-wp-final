@@ -2,11 +2,10 @@ import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Heart, MessageCircle, BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getStories, likeStory } from "@/api/storyApi";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Story {
   id: string;
@@ -16,16 +15,21 @@ interface Story {
   likes_count?: number;
   comments_count?: number;
   created_at?: string;
-  user_id?: string;
+  user_id: string;
+  is_published?: boolean;
+}
+
+interface StoryWithProfile extends Story {
   username?: string;
 }
 
 const Feed = () => {
   const [user, setUser] = useState<any>(null);
-  const [stories, setStories] = useState<Story[]>([]);
+  const [stories, setStories] = useState<StoryWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // ✅ Get current user
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -40,21 +44,52 @@ const Feed = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ✅ Load stories on mount
   useEffect(() => {
     fetchStories();
   }, []);
 
+  // ✅ Fetch published stories and usernames
   const fetchStories = async () => {
     try {
       setLoading(true);
-      const data = await getStories();
-      // Expect backend to return stories with optional username attached
-      setStories(Array.isArray(data) ? data : []);
+
+      const { data: storiesData, error: storiesError } = await supabase
+        .from("stories")
+        .select("*")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false });
+
+      if (storiesError) throw storiesError;
+
+      if (storiesData && storiesData.length > 0) {
+        const userIds = [...new Set(storiesData.map((s) => s.user_id))];
+
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, username")
+          .in("id", userIds);
+
+        if (profilesError) throw profilesError;
+
+        const profileMap = new Map(
+          profilesData?.map((p) => [p.id, p.username]) || []
+        );
+
+        const storiesWithProfiles = storiesData.map((story) => ({
+          ...story,
+          username: profileMap.get(story.user_id) || "Anonymous",
+        }));
+
+        setStories(storiesWithProfiles);
+      } else {
+        setStories([]);
+      }
     } catch (error: any) {
       console.error(error);
       toast({
-        title: "Error",
-        description: "Failed to load stories",
+        title: "Error loading stories",
+        description: error.message || "Failed to load community stories.",
         variant: "destructive",
       });
     } finally {
@@ -62,32 +97,50 @@ const Feed = () => {
     }
   };
 
+  // ✅ Like/Unlike toggle using Supabase
   const handleLike = async (storyId: string) => {
     if (!user) {
       toast({
         title: "Sign in required",
-        description: "Please sign in to like stories",
+        description: "Please sign in to like stories.",
+        variant: "destructive",
       });
       return;
     }
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = (data as any)?.session?.access_token;
-      // call backend like endpoint
-      await likeStory(storyId, { token });
-      // reload stories (or optimistically update)
+      // Try inserting like first
+      const { error: insertError } = await supabase.from("likes").insert({
+        story_id: storyId,
+        user_id: user.id,
+      });
+
+      if (insertError) {
+        // If duplicate (already liked), delete instead
+        if (insertError.code === "23505") {
+          await supabase
+            .from("likes")
+            .delete()
+            .eq("story_id", storyId)
+            .eq("user_id", user.id);
+        } else {
+          throw insertError;
+        }
+      }
+
+      // Refresh stories to reflect like count
       fetchStories();
     } catch (error: any) {
       console.error(error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to like story",
+        title: "Error updating like",
+        description: error.message || "Unable to update like status.",
         variant: "destructive",
       });
     }
   };
 
+  // ✅ UI Rendering
   return (
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
@@ -95,13 +148,23 @@ const Feed = () => {
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gradient mb-2">Community Stories</h1>
-            <p className="text-muted-foreground">Discover amazing stories from the community</p>
+            <h1 className="text-4xl font-bold text-gradient mb-2">
+              Community Stories
+            </h1>
+            <p className="text-muted-foreground">
+              Discover amazing stories from the community
+            </p>
           </div>
 
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto"></div>
+            </div>
+          ) : stories.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                No stories yet. Be the first to share your masterpiece!
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -114,17 +177,26 @@ const Feed = () => {
                     <div>
                       <h3 className="text-xl font-bold mb-2">{story.title}</h3>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                        <span>by {story.username ?? "Anonymous"}</span>
+                        <span>by {story.username}</span>
                         {story.genre && (
-                          <span className="px-2 py-1 rounded bg-primary/20 text-primary">{story.genre}</span>
+                          <span className="px-2 py-1 rounded bg-primary/20 text-primary">
+                            {story.genre}
+                          </span>
                         )}
                       </div>
-                      <p className="text-muted-foreground line-clamp-3">{story.content}</p>
+                      <p className="text-muted-foreground line-clamp-3">
+                        {story.content}
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <div className="flex gap-4">
-                        <Button variant="ghost" size="sm" onClick={() => handleLike(story.id)} className="gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleLike(story.id)}
+                          className="gap-2"
+                        >
                           <Heart className="w-4 h-4" />
                           {story.likes_count ?? 0}
                         </Button>
@@ -133,8 +205,13 @@ const Feed = () => {
                           {story.comments_count ?? 0}
                         </Button>
                       </div>
+
                       <Link to={`/story/${story.id}`}>
-                        <Button variant="outline" size="sm" className="border-neon">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-neon"
+                        >
                           <BookOpen className="w-4 h-4 mr-2" />
                           Read More
                         </Button>
@@ -143,12 +220,6 @@ const Feed = () => {
                   </div>
                 </Card>
               ))}
-
-              {stories.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No stories yet. Be the first to share!</p>
-                </div>
-              )}
             </div>
           )}
         </div>

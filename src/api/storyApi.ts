@@ -1,48 +1,77 @@
 // src/api/storyApi.ts
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { supabase } from "@/integrations/supabase/client";
 
-type StoryData = {
+/** Story type definition */
+export type StoryData = {
+  id?: string;
+  user_id?: string;
   title?: string;
   content: string;
   genre?: string;
   tone?: string;
   style?: string;
   is_published?: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
-async function fetchJSON(url: string, init?: RequestInit) {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${text || res.statusText}`);
-  }
-  return res.json();
-}
-
-/** Get all published stories */
+/** Get all published community stories */
 export async function getStories() {
-  return fetchJSON(`${API_BASE}/api/stories`);
+  const { data, error } = await supabase
+    .from("stories")
+    .select(
+      `
+        id,
+        title,
+        content,
+        genre,
+        tone,
+        style,
+        is_published,
+        created_at,
+        updated_at,
+        user_id,
+        profiles(username)
+      `
+    )
+    .eq("is_published", true)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
-/** Create a story. If token provided, will include Authorization header. */
+/** Create a new story (draft or published) */
 export async function createStory(story: StoryData, opts?: { token?: string }) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts?.token) headers["Authorization"] = `Bearer ${opts.token}`;
-
-  return fetchJSON(`${API_BASE}/api/stories`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(story),
-  });
+  const { data, error } = await supabase.from("stories").insert([story]).select();
+  if (error) throw new Error(error.message);
+  return data?.[0];
 }
 
-/** Like a story (POST /api/stories/:id/like) — backend must implement this endpoint */
-export async function likeStory(storyId: string, opts?: { token?: string }) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts?.token) headers["Authorization"] = `Bearer ${opts.token}`;
+/** Update an existing story (for edit/save) */
+export async function updateStory(
+  id: string,
+  updates: Partial<StoryData>
+) {
+  const { data, error } = await supabase
+    .from("stories")
+    .update(updates)
+    .eq("id", id)
+    .select();
 
-  return fetchJSON(`${API_BASE}/api/stories/${storyId}/like`, {
-    method: "POST",
-    headers,
-  });
+  if (error) throw new Error(error.message);
+  return data?.[0];
+}
+
+/** Like a story (simple local simulation — you can add a likes table if needed) */
+export async function likeStory(storyId: string) {
+  // Optional: If you later add a "likes" table
+  // const { data, error } = await supabase
+  //   .from("likes")
+  //   .insert([{ story_id: storyId, user_id: currentUser.id }]);
+  // if (error) throw new Error(error.message);
+  // return data;
+
+  // For now, just return a dummy success response
+  return { success: true, message: "Liked story successfully" };
 }
