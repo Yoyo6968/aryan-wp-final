@@ -48,7 +48,7 @@ const Feed = () => {
   // ✅ Load stories on mount
   useEffect(() => {
     fetchStories();
-  }, []);
+  }, [user]);
 
   // ✅ Fetch published stories + profiles + like counts
   const fetchStories = async () => {
@@ -81,14 +81,15 @@ const Feed = () => {
         profilesData?.map((p) => [p.id, p.username]) || []
       );
 
-      // 3️⃣ Fetch like counts for each story
-      const { data: likesData } = await supabase
+      // 3️⃣ Fetch like counts for each story (TS-safe version)
+      const { data: likesData, error: likesError } = await supabase
         .from("likes")
-        .select("story_id, count:id")
-        .group("story_id");
+        .select("story_id, count:id", { head: false });
+
+      if (likesError) console.warn("Likes count error:", likesError);
 
       const likeMap = new Map(
-        likesData?.map((l) => [l.story_id, l.count]) || []
+        (likesData as any[])?.map((l) => [l.story_id, l.count || l.id]) || []
       );
 
       // 4️⃣ Check which stories current user liked
