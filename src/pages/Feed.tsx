@@ -50,7 +50,7 @@ const Feed = () => {
     fetchStories();
   }, [user]);
 
-  // ✅ Fetch published stories + profiles + like counts
+  // ✅ Fetch published stories + profiles + like + comment counts
   const fetchStories = async () => {
     try {
       setLoading(true);
@@ -81,18 +81,32 @@ const Feed = () => {
         profilesData?.map((p) => [p.id, p.username]) || []
       );
 
-      // 3️⃣ Fetch like counts for each story (TS-safe version)
+      // 3️⃣ Fetch like counts per story
       const { data: likesData, error: likesError } = await supabase
         .from("likes")
-        .select("story_id, count:id", { head: false });
+        .select("story_id");
 
       if (likesError) console.warn("Likes count error:", likesError);
 
-      const likeMap = new Map(
-        (likesData as any[])?.map((l) => [l.story_id, l.count || l.id]) || []
-      );
+      const likeCountMap = new Map<string, number>();
+      likesData?.forEach((l: any) => {
+        likeCountMap.set(l.story_id, (likeCountMap.get(l.story_id) || 0) + 1);
+      });
 
-      // 4️⃣ Check which stories current user liked
+      // 4️⃣ Fetch comment counts per story (if you have a comments table)
+      const { data: commentsData } = await supabase
+        .from("comments")
+        .select("story_id");
+
+      const commentCountMap = new Map<string, number>();
+      commentsData?.forEach((c: any) => {
+        commentCountMap.set(
+          c.story_id,
+          (commentCountMap.get(c.story_id) || 0) + 1
+        );
+      });
+
+      // 5️⃣ Check which stories user liked
       let userLikes: string[] = [];
       if (user) {
         const { data: likedStories } = await supabase
@@ -102,11 +116,12 @@ const Feed = () => {
         userLikes = likedStories?.map((l) => l.story_id) || [];
       }
 
-      // 5️⃣ Merge all data
+      // 6️⃣ Merge all
       const storiesWithExtras = storiesData.map((story) => ({
         ...story,
         username: profileMap.get(story.user_id) || "Anonymous",
-        likes_count: likeMap.get(story.id) || 0,
+        likes_count: likeCountMap.get(story.id) || 0,
+        comments_count: commentCountMap.get(story.id) || 0,
         isLiked: userLikes.includes(story.id),
       }));
 
@@ -115,7 +130,7 @@ const Feed = () => {
       console.error(error);
       toast({
         title: "Error loading stories",
-        description: error.message || "Failed to load community stories.",
+        description: error.message || "Failed to load stories.",
         variant: "destructive",
       });
     } finally {
@@ -123,7 +138,7 @@ const Feed = () => {
     }
   };
 
-  // ✅ Like/Unlike toggle logic
+  // ✅ Like/Unlike toggle
   const handleLike = async (storyId: string) => {
     if (!user) {
       toast({
@@ -159,10 +174,8 @@ const Feed = () => {
         toast({ title: "Liked!", description: "You liked this story ❤️" });
       }
 
-      // Refresh feed
       await fetchStories();
     } catch (error: any) {
-      console.error(error);
       toast({
         title: "Error",
         description: error.message || "Unable to update like status.",
@@ -171,7 +184,11 @@ const Feed = () => {
     }
   };
 
-  // ✅ UI Rendering
+  // ✅ Navigate to full story with comments
+  const handleViewStory = (storyId: string) => {
+    window.location.href = `/story/${storyId}`;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
@@ -237,22 +254,26 @@ const Feed = () => {
                           />
                           {story.likes_count ?? 0}
                         </Button>
-                        <Button variant="ghost" size="sm" className="gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewStory(story.id)}
+                          className="gap-2"
+                        >
                           <MessageCircle className="w-4 h-4" />
                           {story.comments_count ?? 0}
                         </Button>
                       </div>
 
-                      <Link to={`/story/${story.id}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-neon"
-                        >
-                          <BookOpen className="w-4 h-4 mr-2" />
-                          Read More
-                        </Button>
-                      </Link>
+                      <Button
+                        onClick={() => handleViewStory(story.id)}
+                        variant="outline"
+                        size="sm"
+                        className="border-neon"
+                      >
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        Read More
+                      </Button>
                     </div>
                   </div>
                 </Card>
