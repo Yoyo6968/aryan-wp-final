@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import StoryView from "@/pages/StoryView";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -70,7 +71,7 @@ const App = () => {
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/auth" element={<AuthRoute element={<Auth />} />} />
-
+            <Route path="/story/:id" element={<StoryView />} />
             {/* Protected Routes */}
             <Route path="/generator" element={<ProtectedRoute element={<Generator />} />} />
             <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
