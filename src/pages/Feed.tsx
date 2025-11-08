@@ -21,6 +21,7 @@ interface Story {
 
 interface StoryWithProfile extends Story {
   username?: string;
+  isLiked?: boolean;
 }
 
 const Feed = () => {
@@ -49,11 +50,12 @@ const Feed = () => {
     fetchStories();
   }, []);
 
-  // ✅ Fetch published stories and usernames
+  // ✅ Fetch published stories + profiles + like counts
   const fetchStories = async () => {
     try {
       setLoading(true);
 
+      // 1️⃣ Fetch all published stories
       const { data: storiesData, error: storiesError } = await supabase
         .from("stories")
         .select("*")
@@ -62,29 +64,52 @@ const Feed = () => {
 
       if (storiesError) throw storiesError;
 
-      if (storiesData && storiesData.length > 0) {
-        const userIds = [...new Set(storiesData.map((s) => s.user_id))];
-
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, username")
-          .in("id", userIds);
-
-        if (profilesError) throw profilesError;
-
-        const profileMap = new Map(
-          profilesData?.map((p) => [p.id, p.username]) || []
-        );
-
-        const storiesWithProfiles = storiesData.map((story) => ({
-          ...story,
-          username: profileMap.get(story.user_id) || "Anonymous",
-        }));
-
-        setStories(storiesWithProfiles);
-      } else {
+      if (!storiesData || storiesData.length === 0) {
         setStories([]);
+        setLoading(false);
+        return;
       }
+
+      // 2️⃣ Fetch usernames from profiles table
+      const userIds = [...new Set(storiesData.map((s) => s.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      const profileMap = new Map(
+        profilesData?.map((p) => [p.id, p.username]) || []
+      );
+
+      // 3️⃣ Fetch like counts for each story
+      const { data: likesData } = await supabase
+        .from("likes")
+        .select("story_id, count:id")
+        .group("story_id");
+
+      const likeMap = new Map(
+        likesData?.map((l) => [l.story_id, l.count]) || []
+      );
+
+      // 4️⃣ Check which stories current user liked
+      let userLikes: string[] = [];
+      if (user) {
+        const { data: likedStories } = await supabase
+          .from("likes")
+          .select("story_id")
+          .eq("user_id", user.id);
+        userLikes = likedStories?.map((l) => l.story_id) || [];
+      }
+
+      // 5️⃣ Merge all data
+      const storiesWithExtras = storiesData.map((story) => ({
+        ...story,
+        username: profileMap.get(story.user_id) || "Anonymous",
+        likes_count: likeMap.get(story.id) || 0,
+        isLiked: userLikes.includes(story.id),
+      }));
+
+      setStories(storiesWithExtras);
     } catch (error: any) {
       console.error(error);
       toast({
@@ -97,7 +122,7 @@ const Feed = () => {
     }
   };
 
-  // ✅ Like/Unlike toggle using Supabase
+  // ✅ Like/Unlike toggle logic
   const handleLike = async (storyId: string) => {
     if (!user) {
       toast({
@@ -109,31 +134,36 @@ const Feed = () => {
     }
 
     try {
-      // Try inserting like first
-      const { error: insertError } = await supabase.from("likes").insert({
-        story_id: storyId,
-        user_id: user.id,
-      });
+      const story = stories.find((s) => s.id === storyId);
+      if (!story) return;
 
-      if (insertError) {
-        // If duplicate (already liked), delete instead
-        if (insertError.code === "23505") {
-          await supabase
-            .from("likes")
-            .delete()
-            .eq("story_id", storyId)
-            .eq("user_id", user.id);
-        } else {
-          throw insertError;
-        }
+      if (story.isLiked) {
+        // Unlike
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("story_id", storyId)
+          .eq("user_id", user.id);
+
+        toast({ title: "Unliked", description: "You unliked this story." });
+      } else {
+        // Like
+        const { error: insertError } = await supabase.from("likes").insert({
+          story_id: storyId,
+          user_id: user.id,
+        });
+
+        if (insertError && insertError.code !== "23505") throw insertError;
+
+        toast({ title: "Liked!", description: "You liked this story ❤️" });
       }
 
-      // Refresh stories to reflect like count
-      fetchStories();
+      // Refresh feed
+      await fetchStories();
     } catch (error: any) {
       console.error(error);
       toast({
-        title: "Error updating like",
+        title: "Error",
         description: error.message || "Unable to update like status.",
         variant: "destructive",
       });
@@ -195,9 +225,15 @@ const Feed = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleLike(story.id)}
-                          className="gap-2"
+                          className={`gap-2 ${
+                            story.isLiked ? "text-red-500" : ""
+                          }`}
                         >
-                          <Heart className="w-4 h-4" />
+                          <Heart
+                            className={`w-4 h-4 ${
+                              story.isLiked ? "fill-red-500" : ""
+                            }`}
+                          />
                           {story.likes_count ?? 0}
                         </Button>
                         <Button variant="ghost" size="sm" className="gap-2">
